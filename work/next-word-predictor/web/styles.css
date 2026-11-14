@@ -276,6 +276,7 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
 .range-val { font-family: var(--mono); font-weight: 600; color: var(--ink); }
 
 .btn {
+  text-decoration: none;
   font: inherit; font-size: 14px; font-weight: 600;
   border-radius: 8px; padding: 8px 16px; cursor: pointer;
   border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink);
@@ -314,7 +315,7 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
 /* ---------------------------------------------------------------- charts */
 
 .bars { display: flex; flex-direction: column; gap: 7px; }
-.bar-row { display: grid; grid-template-columns: minmax(70px, 150px) 1fr auto; gap: 10px; align-items: center; font-size: 13px; }
+.bar-row { display: grid; grid-template-columns: minmax(70px, 190px) 1fr auto; gap: 10px; align-items: center; font-size: 13px; }
 .bar-label { font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bar-track { height: 18px; background: var(--surface-2); border-radius: 4px; position: relative; overflow: hidden; }
 .bar-fill { position: absolute; inset: 0 auto 0 0; background: var(--accent); border-radius: 4px; transition: width 0.35s ease; min-width: 2px; }
@@ -392,6 +393,45 @@ tr.total td { font-weight: 700; background: var(--surface-2); }
   background: var(--accent-soft); border-radius: 6px; padding: 2px 7px;
 }
 .toc { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* ---------------------------------------------------------------- interactivity */
+
+kbd {
+  font-family: var(--mono); font-size: 11px; padding: 1px 6px; border-radius: 4px;
+  border: 1px solid var(--border); border-bottom-width: 2px; background: var(--surface); color: var(--ink);
+}
+.ghost-hint { min-height: 22px; margin-top: 8px; font-size: 13px; color: var(--ink-2); }
+.ghost-hint b { color: var(--accent); }
+
+.heat { display: flex; flex-wrap: wrap; gap: 6px; }
+.heat-word {
+  display: inline-flex; flex-direction: column; align-items: center; cursor: help;
+  padding: 5px 10px 4px; border-radius: 8px;
+  background: color-mix(in srgb, var(--heat) 16%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--heat) 55%, transparent);
+  animation: reveal 0.25s ease both;
+}
+.heat-word .hw { font-size: 16px; font-weight: 600; color: var(--ink); }
+.heat-word .hb { font-family: var(--mono); font-size: 11px; color: var(--heat); font-weight: 700; }
+.heat-scale i {
+  display: inline-block; width: 90px; height: 8px; border-radius: 4px; vertical-align: middle; margin: 0 6px;
+  background: linear-gradient(90deg, hsl(140 60% 45%), hsl(70 60% 45%), hsl(0 60% 45%));
+}
+
+.quick { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+.quick-card {
+  font: inherit; text-align: left; cursor: pointer; color: var(--ink);
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 14px 16px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 4px;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.quick-card:hover { transform: translateY(-2px); border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.quick-card .qn {
+  font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--accent-ink); background: var(--accent);
+  width: 22px; height: 22px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center;
+}
+.quick-card .qt { font-weight: 650; font-size: 15px; margin-top: 4px; }
+.quick-card .qd { font-size: 12.5px; color: var(--ink-3); line-height: 1.45; }
 
 /* ---------------------------------------------------------------- feedback */
 

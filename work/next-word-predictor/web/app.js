@@ -293,6 +293,17 @@ function renderOverview(el) {
       <a class="btn ghost" href="#math">Learn the mathematics</a></div>
     </section>
 
+    <div class="quick">
+      ${[
+        ["predict", "I love machine", "Autocomplete a sentence", "Type, then press Tab to accept the top word. Keep pressing Tab to let the model write."],
+        ["predict", "Quantum flux capacitor", "Watch the fallback", "Unknown words become &lt;unk&gt; and the model backs off to word frequencies."],
+        ["generate", "The model", "Generate text", "Sample a sentence step by step and inspect every random choice."],
+        ["evaluate", "", "Measure perplexity", "See why unsmoothed models fail on unseen text and which k works best."],
+      ].map(([page, text, title, desc], i) => `<button class="quick-card" data-go="${page}" data-text="${esc(text)}">
+        <span class="qn">${i + 1}</span><span class="qt">${title}</span><span class="qd">${desc}</span></button>`).join("")}
+    </div>
+    <p class="small muted" style="margin-top:-6px">Shortcuts: press <kbd>1</kbd>–<kbd>7</kbd> to switch pages, <kbd>/</kbd> to jump to the main input.</p>
+
     <div class="tiles">
       ${tile("Training corpus", c.name, `${esc(c.source)} · ${esc(c.line_mode)} mode`, true)}
       ${tile("Sentences", fmtN(c.sentences), `${fmtN(c.train_sentences)} train · ${fmtN(c.test_sentences)} test`)}
@@ -350,6 +361,11 @@ function renderOverview(el) {
       <ol class="small" style="margin:0;padding-left:20px">${c.preview.map((p) => `<li>${esc(p)}</li>`).join("")}</ol>
     </div>
   </div>`;
+  $$("[data-go]", el).forEach((b) => b.addEventListener("click", () => {
+    if (b.dataset.go === "predict" && b.dataset.text) ui.predict.text = b.dataset.text;
+    if (b.dataset.go === "generate" && b.dataset.text) ui.gen.seed_text = b.dataset.text;
+    location.hash = b.dataset.go;
+  }));
 }
 
 // ------------------------------------------------------------------ page 2: prediction studio
@@ -361,7 +377,8 @@ function renderPredict(el) {
   el.innerHTML = `<div class="stack">
     <div class="card">
       <label class="field" for="p-text">Type a sentence — suggestions update as you type</label>
-      <textarea id="p-text" class="big" rows="2" spellcheck="false">${esc(u.text)}</textarea>
+      <textarea id="p-text" class="big" rows="2" spellcheck="false" aria-describedby="p-ghost">${esc(u.text)}</textarea>
+      <div id="p-ghost" class="ghost-hint" aria-live="polite"></div>
       <div class="chips" style="margin:10px 0 14px">${examples.map((e) => `<button class="chip" data-example="${esc(e)}">${esc(e)}</button>`).join("")}</div>
       <div class="controls">
         <label class="field">Model order ${orderSeg("p-order", u.order)}</label>
@@ -374,6 +391,10 @@ function renderPredict(el) {
     <div class="grid grid-2">
       <div class="card"><h2>Next-word suggestions</h2><div id="p-sugs"><div class="empty">…</div></div></div>
       <div class="card"><h2>How this prediction was made</h2><div id="p-why"><div class="empty">…</div></div></div>
+    </div>
+    <div class="card"><h2>Sentence surprise heatmap <span class="badge">per-word probability</span></h2>
+      <p class="card-sub">Each word you typed, coloured by how surprised the model was to see it: surprisal = −log₂ P(word | context) bits. Hover a word for its numbers.</p>
+      <div id="p-heat"></div>
     </div>
     <div class="card"><h2>Continue writing</h2>
       <p class="card-sub">Samples a continuation of your text from the same model and order (unsmoothed MLE distribution). Full controls live in the <a href="#generate">Text Generation Lab</a>.</p>
@@ -391,14 +412,32 @@ function renderPredict(el) {
   const run = latestOnly(() => api("POST", "predict", {
     text: u.text, order: u.order, top_k: u.top_k, smoothing: u.smoothing, k: u.k,
   }));
+  const runScore = latestOnly(() => api("POST", "score", {
+    text: u.text, order: u.order, smoothing: u.smoothing, k: u.k,
+  }));
+  let current = null;
   const predict = async () => {
     try {
       const r = await run();
-      if (r) showPrediction(r);
+      if (r) { current = r; showPrediction(r); }
     } catch (error) {
+      current = null;
       $("#p-sugs", el).innerHTML = errorBox(error);
       $("#p-why", el).innerHTML = "";
+      $("#p-ghost", el).textContent = "";
     }
+    try {
+      const s = await runScore();
+      if (s) $("#p-heat", el).innerHTML = heatmap(s);
+    } catch (error) { $("#p-heat", el).innerHTML = errorBox(error); }
+  };
+  const accept = (word) => {
+    const sep = u.text && !/\s$/.test(u.text) ? " " : "";
+    u.text = `${u.text}${sep}${word}`;
+    text.value = u.text;
+    text.focus();
+    text.setSelectionRange(u.text.length, u.text.length);
+    predict();
   };
   const later = debounce(predict, 220);
 
@@ -424,13 +463,11 @@ function renderPredict(el) {
         Click a suggestion to append it.</p>`;
     }
     $("#p-sugs", el).innerHTML = html;
-    $$(".suggest-chip", el).forEach((b) => b.addEventListener("click", () => {
-      const sep = u.text && !/\s$/.test(u.text) ? " " : "";
-      u.text = `${u.text}${sep}${b.dataset.word}`;
-      text.value = u.text;
-      text.focus();
-      predict();
-    }));
+    $$(".suggest-chip", el).forEach((b) => b.addEventListener("click", () => accept(b.dataset.word)));
+    $("#p-ghost", el).innerHTML = sugs.length
+      ? `<kbd>Tab</kbd> accept <b>${esc(sugs[0].word)}</b> <span class="muted">(P = ${fmtP(sugs[0].probability)})</span>
+         · <kbd>Alt</kbd>+<kbd>1</kbd>…<kbd>${Math.min(9, sugs.length)}</kbd> pick a suggestion`
+      : `<span class="muted">No word suggestion for this context.</span>`;
 
     const fallback = r.backed_off
       ? `<span class="badge warn">Fallback: ${orderName(r.requested_order)} → ${orderName(r.used_order)}</span>`
@@ -448,6 +485,16 @@ function renderPredict(el) {
   };
 
   text.addEventListener("input", () => { u.text = text.value; later(); });
+  text.addEventListener("keydown", (e) => {
+    const sugs = current ? current.suggestions : [];
+    if (e.key === "Tab" && !e.shiftKey && sugs.length) {
+      e.preventDefault();
+      accept(sugs[0].word);
+    } else if (e.altKey && /^[1-9]$/.test(e.key) && sugs[+e.key - 1]) {
+      e.preventDefault();
+      accept(sugs[+e.key - 1].word);
+    }
+  });
   $$("[data-example]", el).forEach((b) => b.addEventListener("click", () => {
     u.text = b.dataset.example; text.value = u.text; predict();
   }));
@@ -489,6 +536,30 @@ function renderPredict(el) {
   $("#pg-re", el).addEventListener("click", () => { u.seed = Math.floor(Math.random() * 100000); seed.value = u.seed; cont(); });
 
   predict();
+}
+
+/** Colour for a surprisal in bits: green (expected) → amber → red (very surprising). */
+function heatColor(bits) {
+  if (bits === null) return "var(--bad)";
+  const t = Math.max(0, Math.min(1, bits / 12));
+  const hue = 140 - 140 * t;                 // 140 = green, 0 = red
+  return `hsl(${hue.toFixed(0)} 60% 45%)`;
+}
+
+function heatmap(s) {
+  if (!s.tokens.length) return `<div class="empty">Start typing a sentence to see how surprising each word is.</div>`;
+  const words = s.tokens.map((t) => {
+    const bits = t.surprisal_bits;
+    const title = `${t.word}${t.mapped !== t.word ? ` (→ ${t.mapped})` : ""}\nP(${t.mapped} | ${t.context.join(" ") || "∅"}) = ${fmtP(t.probability)}\nsurprisal = ${bits === null ? "∞" : bits.toFixed(2)} bits\nseen ${t.count}× after this context`;
+    return `<span class="heat-word" style="--heat:${heatColor(bits)}" title="${esc(title)}">
+      <span class="hw">${esc(t.word)}</span><span class="hb">${bits === null ? "∞" : bits.toFixed(1)}</span></span>`;
+  }).join("");
+  const summary = s.perplexity === null
+    ? `<span class="badge bad">${s.zero_prob_tokens} word(s) with P = 0 → perplexity ∞</span> <span class="small muted">Turn smoothing on to score unseen words.</span>`
+    : `<span class="badge accent">perplexity ${s.perplexity.toFixed(2)}</span> <span class="badge">${(s.cross_entropy / Math.LN2).toFixed(2)} bits / word</span>`;
+  return `<div class="heat">${words}</div>
+    <div class="row" style="margin-top:12px">${summary}<span class="spacer"></span>
+      <span class="heat-scale small muted">expected <i></i> surprising</span></div>`;
 }
 
 // ------------------------------------------------------------------ page 3: n-gram explorer
@@ -1239,6 +1310,16 @@ function route() {
 async function boot() {
   $("#menu-btn").addEventListener("click", () => $("#sidebar").classList.toggle("open"));
   window.addEventListener("hashchange", () => { route(); window.scrollTo(0, 0); });
+  document.addEventListener("keydown", (e) => {
+    const typing = e.target.closest && e.target.closest("input, textarea, select, [contenteditable]");
+    if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (/^[1-7]$/.test(e.key)) {
+      location.hash = PAGES[+e.key - 1].id;
+    } else if (e.key === "/") {
+      const input = $("#page textarea, #page input[type=text]");
+      if (input) { e.preventDefault(); input.focus(); }
+    }
+  });
   try {
     await refreshState();
     ui.predict.order = ui.gen.order = defaultOrder();
