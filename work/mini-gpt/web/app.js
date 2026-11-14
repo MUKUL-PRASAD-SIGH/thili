@@ -219,12 +219,12 @@ function pageAttention(root) {
    The upper triangle is always empty: that is the causal mask. Pick a head, then click a word to see what it attends to.</p>
   <div class="card"><div class="row"><input type="text" id="atxt" value="${esc(attText)}" style="flex:1">
    <button class="btn" id="ago">Analyse</button></div>
-   <p class="hint">Try a pronoun: in “She loved the key”, some heads link <code>She</code> back to <code>Lily</code>.</p></div>
+   <p class="hint">Try a pronoun: in the trained checkpoint, layer 1 · head 2 sends <code>She</code>'s strongest attention back to <code>L</code>, the first token of <code>Lily</code>. Click <code>She</code> to see it.</p></div>
   <div class="grid" style="margin-top:16px;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr)">
    <div class="card"><h3>All ${L * H} heads <span class="hint">(${L} layers × ${H} heads)</span></h3><div id="heads" class="heads"></div></div>
    <div class="card"><h3 id="htitle"></h3><div id="focus" class="focus"></div><div id="heat" style="margin-top:14px"></div></div>
   </div>`;
-  let data = null, sel = [L - 1, 0], q = null;
+  let data = null, sel = [0, Math.min(1, H - 1)], q = null;
   const go = async () => {
     attText = $("#atxt").value;
     try { data = await api("/api/attention", { text: attText }); q = data.pieces.length - 1; draw(); } catch (e) { toast(e.message); }
@@ -260,7 +260,7 @@ function pageAttention(root) {
     // full matrix
     const n = data.pieces.length, cell = n > 28 ? 14 : 22;
     let html = `<div class="heat" style="grid-template-columns: 90px repeat(${n}, ${cell}px)"><div></div>`;
-    html += data.pieces.map((p) => `<div class="top">${esc(vis(p))}</div>`).join("");
+    html += data.pieces.map((p) => `<div class="colh">${esc(vis(p))}</div>`).join("");
     m.forEach((row, i) => {
       html += `<div class="lab">${esc(vis(data.pieces[i]))}</div>`;
       html += row.map((v, j) => `<div class="c" data-i="${i}" data-j="${j}" style="height:${cell}px;background:${j > i ? "repeating-linear-gradient(45deg,transparent 0 3px,rgba(128,128,128,.15) 3px 5px)" : `rgba(91,91,214,${Math.sqrt(v)})`}"></div>`).join("");

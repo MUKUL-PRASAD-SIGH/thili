@@ -71,7 +71,7 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .heat { display: grid; gap: 1px; font: 11px var(--mono); overflow-x: auto; }
 .heat .c { width: 22px; height: 22px; }
 .heat .lab { white-space: pre; overflow: hidden; text-overflow: ellipsis; padding-right: 6px; text-align: right; color: var(--muted); }
-.heat .top { writing-mode: vertical-rl; transform: rotate(180deg); height: 70px; white-space: pre; color: var(--muted); overflow: hidden; }
+.heat .colh { writing-mode: vertical-rl; transform: rotate(180deg); height: 70px; white-space: pre; color: var(--muted); overflow: hidden; }
 .heads { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 .mini { cursor: pointer; border: 2px solid transparent; border-radius: 10px; padding: 6px; background: var(--bg); }
 .mini.sel { border-color: var(--accent); }
