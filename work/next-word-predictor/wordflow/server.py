@@ -17,7 +17,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from .corpus import MAX_UPLOAD_BYTES, CorpusError
-from .service import PROJECT_DIR, TrainingConfig, Workspace
+from .service import PROJECT_DIR, TOY_CORPUS, TrainingConfig, Workspace
 
 WEB_DIR = PROJECT_DIR / "web"
 MAX_BODY_BYTES = MAX_UPLOAD_BYTES * 2          # base64 inflates uploads by ~4/3
@@ -101,6 +101,15 @@ def handle_api(workspace: Workspace, method: str, route: str, params: dict) -> d
             k=_float(params, "k", 1.0, 1e-6, 100.0) if smoothing else 0.0,
         )
 
+    if route == "score" and method == "POST":
+        smoothing = _bool(params, "smoothing", True)
+        return workspace.score(
+            text=_text(params, "text"),
+            order=_order(workspace, params),
+            k=_float(params, "k", 1.0, 1e-6, 100.0) if smoothing else 0.0,
+            backoff=_bool(params, "backoff", False),
+        )
+
     if route == "generate" and method == "POST":
         seed = params.get("seed")
         return workspace.generate(
@@ -135,7 +144,7 @@ def handle_api(workspace: Workspace, method: str, route: str, params: dict) -> d
 
     if route == "learn" and method == "POST":
         return workspace.learn(
-            corpus_text=_text(params, "corpus_text", max_length=20_000) or "",
+            corpus_text=_text(params, "corpus_text", max_length=20_000) or TOY_CORPUS,
             test_sentence=_text(params, "test_sentence", max_length=500),
             context_word=_text(params, "context_word", max_length=100),
             target_word=_text(params, "target_word", max_length=100),

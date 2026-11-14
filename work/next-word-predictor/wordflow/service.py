@@ -20,7 +20,7 @@ from .evaluation import compare_models, evaluate, score_sentence
 from .generation import TextGenerator
 from .ngram_model import NGramModel
 from .predictor import NextWordPredictor, format_context, order_name
-from .preprocessing import BOS, EOS, SPECIAL_TOKENS, UNK, pad_sentence, tokenize
+from .preprocessing import BOS, EOS, SPECIAL_TOKENS, UNK, context_tokens, pad_sentence, tokenize
 from .smoothing import add_k_probability, mle_probability, validate_k
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
@@ -241,6 +241,44 @@ class Workspace:
             stop_at_eos=stop_at_eos,
         )
         return {"version": state.version, **result.to_dict()}
+
+    def score(self, text: str, order: int, k: float = 0.0, backoff: bool = False) -> dict:
+        """Per-token probabilities of a typed sentence, for the 'surprise' heatmap.
+
+        Scores the sentence being typed (the last unfinished one) word by word. The
+        final ``</s>`` event is left out because the user has not finished the
+        sentence yet. Summary metrics use the same formulas as the evaluator.
+        """
+        state = self.state
+        model = state.model
+        k = validate_k(k)
+        tokens = context_tokens(text)
+        if not tokens:
+            return {"version": state.version, "order": order, "k": k, "tokens": [],
+                    "cross_entropy": None, "perplexity": None, "zero_prob_tokens": 0}
+        rows = score_sentence(model, tokens, order, k, backoff)[:-1]       # drop </s>
+        zeros = sum(1 for *_rest, p in rows if p <= 0)
+        nll = sum(-math.log(p) for *_rest, p in rows if p > 0)
+        h = None if zeros else nll / len(rows)
+        return {
+            "version": state.version,
+            "order": order,
+            "k": k,
+            "tokens": [
+                {
+                    "word": original,
+                    "mapped": word,
+                    "context": list(context),
+                    "probability": p,
+                    "surprisal_bits": -math.log2(p) if p > 0 else None,
+                    "count": model.count(context, word) if len(context) < model.order else 0,
+                }
+                for original, (context, word, p) in zip(tokens, rows)
+            ],
+            "cross_entropy": h,
+            "perplexity": math.exp(h) if h is not None else None,
+            "zero_prob_tokens": zeros,
+        }
 
     # ------------------------------------------------------------------ explorer
 
