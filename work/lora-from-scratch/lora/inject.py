@@ -74,10 +74,15 @@ def load_adapter(model: nn.Module, adapter: Dict[str, torch.Tensor]) -> None:
     model.load_state_dict(adapter, strict=False)
 
 
-def save_adapter(path: str, model: nn.Module, meta: dict, extra: Iterable[str] = ()) -> int:
-    """Save to .safetensors; returns the file size in bytes."""
+def save_adapter(path: str, model: nn.Module, meta: dict, extra: Iterable[str] = (),
+                 dtype: torch.dtype = torch.float16) -> int:
+    """Save to .safetensors (fp16 by default, like PEFT checkpoints); returns the size in bytes.
+
+    Training happens in fp32; storing the small A/B matrices in 16 bits halves the file and
+    is cast back to the model's dtype by ``load_adapter``.
+    """
     from safetensors.torch import save_file
-    sd = {k: v.contiguous() for k, v in adapter_state_dict(model, extra).items()}
+    sd = {k: v.to(dtype).contiguous() for k, v in adapter_state_dict(model, extra).items()}
     save_file(sd, path, metadata={k: str(v) for k, v in meta.items()})
     import os
     return os.path.getsize(path)
