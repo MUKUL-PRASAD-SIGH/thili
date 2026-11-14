@@ -174,17 +174,23 @@ class TestAdapters(unittest.TestCase):
         randomize_lora(a)
         idx, lengths = torch.randint(0, 100, (3, 9)), torch.full((3,), 9)
         with tempfile.TemporaryDirectory() as d:
-            p = os.path.join(d, "ad.safetensors")
-            size = save_adapter(p, a, {"rank": 4}, extra=("score",))
-            sd, meta = read_adapter(p)
+            p16, p32 = os.path.join(d, "a16.safetensors"), os.path.join(d, "a32.safetensors")
+            size16 = save_adapter(p16, a, {"rank": 4}, extra=("score",))            # default fp16
+            size32 = save_adapter(p32, a, {"rank": 4}, extra=("score",), dtype=torch.float32)
+            sd16, meta = read_adapter(p16)
+            sd32, _ = read_adapter(p32)
         self.assertEqual(meta["rank"], "4")
-        self.assertLess(size, 20_000)
-        self.assertTrue(all("lora_" in k or k.startswith("score") for k in sd))
-        b = GPT2Classifier(tiny_gpt2())
-        inject_lora(b, ("c_attn",), r=4)
-        load_adapter(b, sd)
+        self.assertLess(size16, 0.6 * size32)           # fp16 roughly halves the file
+        self.assertTrue(all(v.dtype == torch.float16 for v in sd16.values()))
+        self.assertTrue(all("lora_" in k or k.startswith("score") for k in sd16))
         with torch.no_grad():
-            self.assertTrue(torch.allclose(a.eval()(idx, lengths), b.eval()(idx, lengths), atol=1e-6))
+            ref = a.eval()(idx, lengths)
+            for sd, tol in [(sd32, 1e-6), (sd16, 1e-3)]:   # fp32 is exact, fp16 is close
+                b = GPT2Classifier(tiny_gpt2())
+                inject_lora(b, ("c_attn",), r=4)
+                load_adapter(b, sd)
+                self.assertEqual(b.transformer.h[0].attn.c_attn.lora_A.dtype, torch.float32)
+                self.assertTrue(torch.allclose(ref, b.eval()(idx, lengths), atol=tol))
 
     def test_load_rejects_bad_adapters(self):
         m = tiny_gpt2()
