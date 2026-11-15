@@ -12,17 +12,45 @@ Drill: *Fine-Tune GPT-2 to Tag Legal Contract Clauses* (LearnFast, Language Mode
 It runs on CPU and needs `torch`, `transformers`, `datasets` and `scikit-learn` (the last
 only for the baselines in `evaluate.py`).
 
-## Status
+## Results
 
-The pipeline is built and tested end to end on a tiny model (12 tests). The first full
-training run was stopped at step 120 of 500 when the machine ran out of memory.
+GPT-2 was fine-tuned with the Trainer on 4,000 training clauses for 1 epoch: 500 steps of 8,
+39 minutes on a laptop CPU, with every weight trained. Dev loss fell from 1.14 at step 100 to
+0.56 at step 500. Scores are on 2,000 clauses from the official LEDGAR **test** split, which
+was never used for training or model selection (`results/eval.json`).
 
-* Training loss had fallen from 9.4 to 1.28.
-* Dev loss at step 100 was 1.14 (`results/train_log.jsonl`).
-* **There are no test-set accuracy numbers yet.**
+| Model | Accuracy | Top-3 | Macro-F1 |
+|---|---:|---:|---:|
+| Majority class (always `<Governing Laws>`) | 5.4% | – | – |
+| GPT-2 with the new tokens, **before** fine-tuning | 5.8% | 11.4% | 0.04 |
+| **GPT-2 fine-tuned, free generation** | **73.2%** | – | – |
+| **GPT-2 fine-tuned, constrained to the 100 types** | **73.4%** | **89.0%** | **0.56** |
+| TF-IDF + logistic regression, same 4,000 clauses, same 64-token cut | 76.4% | – | 0.62 |
+| TF-IDF + logistic regression, all 60,000 clauses | 86.8% | – | 0.79 |
 
-To finish, run `python train.py` and then `python evaluate.py`. Training needs about
-1.9 GB of free RAM.
+* **It tags clauses.** Free generation (greedy over all 50k tokens) answers with a valid
+  clause type 99.55% of the time. `model.generate` agrees with the one-pass decoding on 20 of
+  20 checked clauses.
+* **Before fine-tuning, GPT-2 never produces a type token** (0% free-generation accuracy) and
+  is near chance when constrained.
+* **Easy and hard types.** The best types are formulaic, with F1 0.92–0.99 for Counterparts,
+  Severability, Notices, Use Of Proceeds, Confidentiality and Headings. The worst have
+  near-synonyms among the labels:
+  * Applicable Laws, F1 0.18 (13 of its errors are predicted as Governing Laws);
+  * Tax Withholdings, F1 0.00 (predicted as Withholdings);
+  * Miscellaneous and General, too vague to identify from the text.
+
+  Many "errors" are LEDGAR's own label overlap.
+* **It does not beat a linear baseline at this data size.** TF-IDF + logistic regression
+  trained on the same 4,000 clauses is 3 points better, and with all 60,000 clauses it
+  reaches 86.8%. This run used 7% of the training data, one epoch and the first 64 tokens
+  per clause, all to fit a CPU. LexGLUE reports about 88% micro-F1 for fully trained legal
+  transformers. More data and epochs (`python train.py --n-train 60000 --epochs 2`, GPU
+  recommended) is the obvious next step.
+
+Training is resumable: `python train.py --max-minutes 8` stops cleanly with a full
+checkpoint, and running the same command again continues it. This run was done in 6 such
+pieces.
 
 ## How classification becomes generation
 
