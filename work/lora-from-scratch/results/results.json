@@ -158,5 +158,48 @@
     "dev_acc": 0.8
    }
   ]
+ },
+ {
+  "name": "qlora-r8-c_attn",
+  "mode": "qlora",
+  "rank": 8,
+  "alpha": 16,
+  "targets": [
+   "c_attn"
+  ],
+  "lr": 0.0005,
+  "epochs": 2,
+  "n_train": 4000,
+  "trainable_params": 296448,
+  "trainable_percent": 0.7463696656805305,
+  "best_dev_acc": 0.88,
+  "best_step": 250,
+  "test_acc": 0.8669724770642202,
+  "train_time_s": 876,
+  "peak_rss_mb": 1203,
+  "adapter_bytes": 595528,
+  "model_storage_mb": 193.6,
+  "history": [
+   {
+    "step": 125,
+    "loss": 0.3654,
+    "dev_acc": 0.862
+   },
+   {
+    "step": 250,
+    "loss": 0.4845,
+    "dev_acc": 0.88
+   },
+   {
+    "step": 375,
+    "loss": 0.0496,
+    "dev_acc": 0.862
+   },
+   {
+    "step": 500,
+    "loss": 0.3191,
+    "dev_acc": 0.88
+   }
+  ]
  }
 ]

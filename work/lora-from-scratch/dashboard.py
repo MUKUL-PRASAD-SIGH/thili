@@ -84,7 +84,8 @@ with tab1:
 
 # ------------------------------------------------------------------------------------ live adapters
 with tab2:
-    files = sorted(ADAPTERS.glob("*.safetensors"))
+    # QLoRA adapters were trained against a 4-bit base; this tab loads the fp32 base, so they are left out
+    files = sorted(f for f in ADAPTERS.glob("*.safetensors") if not f.stem.startswith("qlora"))
     if not files:
         st.info("No adapters in adapters/: run `python finetune.py --mode lora --rank 8` first.")
     else:
