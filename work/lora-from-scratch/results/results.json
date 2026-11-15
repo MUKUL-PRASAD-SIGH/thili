@@ -125,5 +125,38 @@
     "dev_acc": 0.884
    }
   ]
+ },
+ {
+  "name": "lora-r8-c_attn-n1000",
+  "mode": "lora",
+  "rank": 8,
+  "alpha": 16,
+  "targets": [
+   "c_attn"
+  ],
+  "lr": 0.0005,
+  "epochs": 2,
+  "n_train": 1000,
+  "trainable_params": 296448,
+  "trainable_percent": 0.23765985087767907,
+  "best_dev_acc": 0.8,
+  "best_step": 125,
+  "test_acc": 0.8165137614678899,
+  "train_time_s": 176,
+  "peak_rss_mb": 1508,
+  "adapter_bytes": 595528,
+  "model_storage_mb": 475.8,
+  "history": [
+   {
+    "step": 125,
+    "loss": 0.4855,
+    "dev_acc": 0.8
+   },
+   {
+    "step": 126,
+    "loss": 0.4772,
+    "dev_acc": 0.8
+   }
+  ]
  }
 ]

@@ -49,6 +49,7 @@ Setup:
 | Head only (linear probe) | 1,536 | 0.001% | 6 KB | 82.0% | 1.10 GB |
 | **LoRA r = 8** on `c_attn` | 296,448 | **0.24%** | **582 KB** | 86.0% | 1.59 GB |
 | **LoRA r = 1** on `c_attn` | 38,400 | 0.03% | 78 KB | **88.0%** | 1.37 GB |
+| LoRA r = 8, only 1,000 train sentences | 296,448 | 0.24% | 582 KB | 81.7% | 1.51 GB |
 
 Adapters are stored in fp16. GPT-2 itself is 498 MB in fp32, so the r = 8 adapter is
 **0.12%** of the model's size.
@@ -57,6 +58,8 @@ How to read this:
 
 * LoRA beats training the head alone by 4 to 6 points. Adapting attention helps, even with
   0.03% of the weights.
+* With a quarter of the training data, LoRA r = 8 drops from 86.0% to 81.7%, about the
+  same as training the head alone on all 4,000 sentences.
 * r = 1 doing slightly better than r = 8 matches the paper's finding: the update needed
   for a task like this has a very low intrinsic rank.
 * These are single runs on 872 test sentences. One standard error is about ±1.2 points, so
@@ -87,22 +90,51 @@ is the motivating problem of the whole technique.
 * **Runs:** head-only, LoRA r = 1/4/8 and full fine-tuning, 3 seeds each, all with the same
   AdamW budget.
 
-### Experiments not yet run
+### Full fine-tuning vs LoRA, same budget (mini-GPT)
 
-Claude Code stopped the experiment chain because the system ran low on memory, so these
-have no numbers yet:
+Data: 3,000 train / 1,000 dev / 875 test examples. Each method ran with 3 seeds and the
+same AdamW budget (`results/full_vs_lora_minigpt.json`).
 
-* QLoRA on GPT-2
-* `compare_full_ft.py`
-* `merge_and_swap.py`
+| Method | Trainable params | % of model | Test accuracy (3 seeds) |
+|---|---:|---:|---:|
+| Head only | 256 | 0.03% | 72.8 – 79.7% |
+| LoRA r = 1 | 2,304 | 0.27% | 99.9 – 100% |
+| LoRA r = 4 | 8,448 | 0.96% | 100% |
+| LoRA r = 8 | 16,640 | 1.88% | 99.9 – 100% |
+| Full fine-tuning | 867,328 | 100% | 100% |
 
-Their code is tested on small models (see Tests below). To run them:
+LoRA matches full fine-tuning while training 0.27% of the weights; the head alone does
+not. The task is easy enough that every adapted model saturates, so this shows parity,
+not where the two would differ.
+
+### Merge and swap on real GPT-2
+
+`merge_and_swap.py` with the r = 1 adapter (`results/merge_and_swap.json`):
+
+| Check | Result |
+|---|---|
+| Max logit change after merging | 6.9e-6 (float rounding) |
+| Test accuracy, unmerged → merged | 87.96% → 87.96% |
+| Unmerge restores W0 | max diff 3.8e-6 |
+| LoRA layers left after `strip_lora` | 0 |
+| Activate an adapter | 8.8 ms |
+| Reload the whole base model instead | 2,349 ms |
+| Adapters disabled vs a fresh GPT-2 (LM logits) | 0.0 (identical) |
+| Latency per 64×45 batch: unmerged / merged / plain | 3.9 s / 3.3 s / 3.9 s |
+
+The latency gap between merged and plain is timing noise. At r = 1 the unmerged LoRA
+branch costs nothing measurable.
+
+The demo only swaps one adapter. The other saved adapters are rank 8 and do not fit the
+rank-1 layout the base was set up for.
+
+### Not yet run
+
+QLoRA on GPT-2 has no SST-2 numbers yet. Its code is tested on a small model (see Tests
+below). To run it:
 
 ```bash
 python finetune.py --mode qlora --rank 8
-python finetune.py --mode lora --rank 8 --n-train 1000 --name lora-r8-c_attn-n1000
-python compare_full_ft.py
-python merge_and_swap.py
 ```
 
 `results/run_all.sh` reproduces every run in order (about 1 hour on CPU). Close other
