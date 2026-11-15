@@ -248,6 +248,17 @@ class TestAgainstTransformers(unittest.TestCase):
 
     def test_matches_hf_gpt2(self):
         try:
+            import torchaudio  # noqa: F401
+        except ImportError:
+            pass
+        except OSError:
+            # transformers imports torchaudio whenever it is installed; a torchaudio built for a
+            # different torch crashes that import. We never use audio, so hide it.
+            import transformers.utils as tu
+            import transformers.utils.import_utils as iu
+            iu.is_torchaudio_available = lambda: False
+            tu.is_torchaudio_available = iu.is_torchaudio_available
+        try:
             from transformers import GPT2Config as HFConfig, GPT2Model
         except ImportError:
             self.skipTest("transformers not installed")
