@@ -96,7 +96,8 @@ def main() -> None:
     preds = predict_all(tagger, clauses, progress=lambda k: print(f"\r  tagged {k}/{len(clauses)}", end="", flush=True))
     secs = time.time() - t0
     print()
-    report = {"model": args.model, "n_train": n_train, "fine_tuned": score(preds, gold, names),
+    model_rel = Path(args.model).resolve().relative_to(ROOT).as_posix() if Path(args.model).resolve().is_relative_to(ROOT) else args.model
+    report = {"model": model_rel, "n_train": n_train, "fine_tuned": score(preds, gold, names),
               "clauses_per_second": round(len(clauses) / secs, 1)}
 
     # model.generate agrees with our one-pass "free generation"?
@@ -145,7 +146,7 @@ def main() -> None:
     worst = sorted((r for r in rows if r["support"] >= 10), key=lambda r: r["f1"])[:5]
     print("  hardest types:", ", ".join(f"{r['type']} {r['f1']:.2f}" for r in worst))
     print("  top confusions:", "; ".join(f"{c['gold']} -> {c['predicted']} x{c['count']}" for c in conf[:5]))
-    print(f"saved {out}")
+    print(f"saved {out.relative_to(ROOT).as_posix()}")
 
 
 if __name__ == "__main__":

@@ -39,6 +39,23 @@ class AnswerLossTrainer(Trainer):
         return (loss, (loss,)) if return_outputs else loss   # eval only needs the loss
 
 
+class TimeLimit(TrainerCallback):
+    """Stop cleanly after `minutes`, saving a full checkpoint (weights + optimizer + data position).
+
+    Running the same command again resumes from it, so a long run can be done in short pieces
+    (useful on a laptop where a long process risks being killed when memory runs low).
+    """
+
+    def __init__(self, minutes: float) -> None:
+        self.minutes = minutes
+        self.t0 = time.time()
+
+    def on_step_end(self, args, state, control, **kw):
+        if (time.time() - self.t0) / 60 > self.minutes:
+            control.should_save = True
+            control.should_training_stop = True
+
+
 class LogToFile(TrainerCallback):
     def __init__(self, path: Path) -> None:
         self.path = path
@@ -64,6 +81,9 @@ def main() -> None:
     ap.add_argument("--threads", type=int, default=12)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default=str(ROOT / "outputs" / "clause-gpt2"))
+    ap.add_argument("--max-minutes", type=float, default=float("inf"),
+                    help="pause after this long; re-run the same command to resume")
+    ap.add_argument("--fresh", action="store_true", help="ignore any checkpoint and start over")
     args = ap.parse_args()
     torch.set_num_threads(args.threads)
 
@@ -82,7 +102,14 @@ def main() -> None:
     work = ROOT / "outputs" / "trainer"
     log = ROOT / "results" / "train_log.jsonl"
     log.parent.mkdir(exist_ok=True)
-    log.write_text("")
+    from transformers.trainer_utils import get_last_checkpoint
+    resume = None if args.fresh or not work.exists() else get_last_checkpoint(str(work))
+    if resume and not (Path(resume) / "optimizer.pt").exists():
+        resume = None                                  # an old weights-only checkpoint cannot be resumed
+    if resume is None:
+        log.write_text("")
+        (work / "minutes.txt").unlink(missing_ok=True) if work.exists() else None
+    print("resuming from " + Path(resume).name if resume else "starting a new run")
     steps = int(len(train_ex) / args.batch * args.epochs)
     eval_every = max(25, steps // 5)
     targs = TrainingArguments(
@@ -91,20 +118,29 @@ def main() -> None:
         num_train_epochs=args.epochs, learning_rate=args.lr, optim="adafactor",
         lr_scheduler_type="linear", warmup_steps=int(0.05 * steps), weight_decay=0.0,
         eval_strategy="steps", eval_steps=eval_every, save_strategy="steps", save_steps=eval_every,
-        save_total_limit=1, load_best_model_at_end=True, metric_for_best_model="eval_loss",
-        greater_is_better=False, save_only_model=True, prediction_loss_only=True,
+        save_total_limit=2, load_best_model_at_end=True, metric_for_best_model="eval_loss",
+        greater_is_better=False, save_only_model=False, prediction_loss_only=True,
         logging_steps=10, report_to=[], dataloader_num_workers=0, remove_unused_columns=False,
         disable_tqdm=True,
     )
     trainer = AnswerLossTrainer(model=model, args=targs, train_dataset=train_ex, eval_dataset=dev_ex,
-                                data_collator=Collator(tok.pad_token_id), callbacks=[LogToFile(log)])
+                                data_collator=Collator(tok.pad_token_id),
+                                callbacks=[LogToFile(log), TimeLimit(args.max_minutes)])
     t0 = time.time()
-    trainer.train()
-    minutes = (time.time() - t0) / 60
+    trainer.train(resume_from_checkpoint=resume)
+    work.mkdir(parents=True, exist_ok=True)
+    spent = (time.time() - t0) / 60
+    prev = float((work / "minutes.txt").read_text()) if (work / "minutes.txt").exists() else 0.0
+    minutes = prev + spent
+    (work / "minutes.txt").write_text(str(minutes))
+    if trainer.state.global_step < trainer.state.max_steps:
+        print(f"paused at step {trainer.state.global_step}/{trainer.state.max_steps}; run the same command to resume")
+        return
 
     ClauseTagger(trainer.model, tok, names, args.max_clause_tokens).save(str(out))
-    meta = {**vars(args), "train_minutes": round(minutes, 1), "steps": trainer.state.global_step,
-            "best_eval_loss": trainer.state.best_metric, "best_checkpoint": trainer.state.best_model_checkpoint}
+    rel = lambda p: Path(p).resolve().relative_to(ROOT).as_posix() if p and Path(p).resolve().is_relative_to(ROOT) else p  # noqa: E731
+    meta = {**vars(args), "out": rel(args.out), "train_minutes": round(minutes, 1), "steps": trainer.state.global_step,
+            "best_eval_loss": trainer.state.best_metric, "best_checkpoint": rel(trainer.state.best_model_checkpoint)}
     (ROOT / "results" / "train_run.json").write_text(json.dumps(meta, indent=1))
     print(f"done in {minutes:.1f} min; best dev loss {trainer.state.best_metric:.4f}; saved to {out}")
 
