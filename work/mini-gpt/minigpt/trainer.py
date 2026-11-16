@@ -15,6 +15,17 @@ from .data import Batcher, encode_documents, read_documents, split_documents, un
 from .model import GPT, GPTConfig
 from .tokenizer import BPETokenizer
 
+PROJECT = Path(__file__).resolve().parents[1]
+
+
+def portable(path) -> str:
+    """Path relative to the project folder when it lies inside it, so logs and checkpoints
+    never record the absolute location of the user's checkout."""
+    try:
+        return Path(path).resolve().relative_to(PROJECT).as_posix()
+    except ValueError:
+        return str(path)
+
 
 @dataclass
 class TrainConfig:
@@ -113,7 +124,7 @@ def train(tcfg: TrainConfig, mcfg: GPTConfig, log: Callable[[str], None] = print
     history = {"step": [], "train_loss": [], "val_loss": [], "lr": [], "batch_loss": []}
     best_val = float("inf")
     meta_base = {
-        "train_config": asdict(tcfg), "baselines": baselines,
+        "train_config": dict(asdict(tcfg), corpus=portable(tcfg.corpus), out_dir=portable(tcfg.out_dir)), "baselines": baselines,
         "data": {"train_docs": len(train_docs), "val_docs": len(val_docs),
                  "train_tokens": train_ids.numel(), "val_tokens": val_ids.numel(),
                  "chars_per_token": train_chars / train_ids.numel()},
@@ -154,5 +165,5 @@ def train(tcfg: TrainConfig, mcfg: GPTConfig, log: Callable[[str], None] = print
         history["batch_loss"].append(round(loss.item(), 4))
 
     log(f"done in {time.time() - t0:.0f}s, best val loss {best_val:.4f} "
-        f"(perplexity {math.exp(best_val):.2f}) -> {out / 'best.pt'}")
+        f"(perplexity {math.exp(best_val):.2f}) -> {portable(out / 'best.pt')}")
     return {"best_val_loss": best_val, "history": history, "baselines": baselines}

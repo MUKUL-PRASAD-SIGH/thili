@@ -1,7 +1,7 @@
 {
  "train_config": {
-  "corpus": "C:\\Users\\Mukul Prasad\\Desktop\\PROJECTS\\thili\\work\\mini-gpt\\data\\stories.txt",
-  "out_dir": "C:\\Users\\Mukul Prasad\\Desktop\\PROJECTS\\thili\\work\\mini-gpt\\checkpoints",
+  "corpus": "data/stories.txt",
+  "out_dir": "checkpoints",
   "vocab_size": 512,
   "val_fraction": 0.1,
   "batch_size": 32,

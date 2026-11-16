@@ -50,6 +50,7 @@ Setup:
 | **LoRA r = 8** on `c_attn` | 296,448 | **0.24%** | **582 KB** | 86.0% | 1.59 GB |
 | **LoRA r = 1** on `c_attn` | 38,400 | 0.03% | 78 KB | **88.0%** | 1.37 GB |
 | LoRA r = 8, only 1,000 train sentences | 296,448 | 0.24% | 582 KB | 81.7% | 1.51 GB |
+| **QLoRA r = 8**: same LoRA on a 4-bit NF4 base | 296,448 | 0.24% | 582 KB | 86.7% | **1.20 GB** |
 
 Adapters are stored in fp16. GPT-2 itself is 498 MB in fp32, so the r = 8 adapter is
 **0.12%** of the model's size.
@@ -128,14 +129,23 @@ branch costs nothing measurable.
 The demo only swaps one adapter. The other saved adapters are rank 8 and do not fit the
 rank-1 layout the base was set up for.
 
-### Not yet run
+### QLoRA on real GPT-2
 
-QLoRA on GPT-2 has no SST-2 numbers yet. Its code is tested on a small model (see Tests
-below). To run it:
+`python finetune.py --mode qlora --rank 8` quantizes every `c_attn`, `c_proj` and `c_fc` weight of
+GPT-2 to NF4 (with double-quantized scales), then trains the same rank-8 LoRA on top:
 
-```bash
-python finetune.py --mode qlora --rank 8
-```
+| | LoRA r = 8 (fp32 base) | QLoRA r = 8 (NF4 base) |
+|---|---:|---:|
+| Base model stored | 475.8 MB | **193.6 MB** |
+| Peak RAM while training | 1.59 GB | **1.20 GB** |
+| Test accuracy | 86.0% | 86.7% |
+| Training time (500 steps) | 476 s | 876 s |
+
+The 4-bit base costs no accuracy (the 0.7-point difference is well inside ±1.2 points of
+noise). It saves 59% of the base model's storage and 0.39 GB of training memory. The price
+is time: every weight is dequantized on the fly in each forward and backward pass, 1.84×
+slower on this CPU. The memory maths above predicted about 0.20 GB for the NF4 base; 193.6 MB
+was measured. The log is `results/log-qlora-r8.txt`.
 
 `results/run_all.sh` reproduces every run in order (about 1 hour on CPU). Close other
 memory-heavy apps first.
@@ -152,7 +162,22 @@ python finetune.py --mode full                          # all 124M weights (~2.5
 python merge_and_swap.py                                # merge check + adapter hot-swap
 python compare_full_ft.py                               # full FT vs LoRA, same budget
 python -m unittest discover -s tests -t .
+streamlit run dashboard.py                              # demo dashboard (needs streamlit, plotly)
 ```
+
+## Dashboard
+
+`streamlit run dashboard.py` opens four tabs:
+
+* **Results:** every measured number from `results/`.
+* **Try the adapters:** type sentences and classify them with any trained adapter, hot-swapped
+  onto one frozen GPT-2 in a few milliseconds.
+* **LoRA maths:** how rank and target layers set the parameter count and memory.
+* **QLoRA / NF4:** quantize a weight tensor to 4 bits live, NF4 vs uniform int4, with
+  outliers and block size as controls.
+
+The four trained adapters in `adapters/` are committed (6–582 KB each), so the live tab works
+without retraining. It only needs GPT-2 in the Hugging Face cache.
 
 On first use, GPT-2's weights are fetched into the Hugging Face cache
 (`openai-community/gpt2`, 548 MB). SST-2 is read from the local `datasets` cache, or
