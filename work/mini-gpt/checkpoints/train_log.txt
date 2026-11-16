@@ -18,4 +18,4 @@ step  1200 | train 0.2274 | val 0.2210 | ppl    1.25 | lr 5.95e-04 | 402.1s
 step  1300 | train 0.2253 | val 0.2199 | ppl    1.25 | lr 4.34e-04 | 431.8s
 step  1400 | train 0.2222 | val 0.2168 | ppl    1.24 | lr 3.34e-04 | 462.4s
 step  1500 | train 0.2207 | val 0.2163 | ppl    1.24 | lr 3.00e-04 | 492.7s
-done in 493s, best val loss 0.2163 (perplexity 1.24) -> C:\Users\Mukul Prasad\Desktop\PROJECTS\thili\work\mini-gpt\checkpoints\best.pt
+done in 493s, best val loss 0.2163 (perplexity 1.24) -> checkpoints/best.pt

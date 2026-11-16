@@ -10,7 +10,7 @@ from pathlib import Path
 
 from minigpt.corpus import write_corpus
 from minigpt.model import GPTConfig
-from minigpt.trainer import TrainConfig, train
+from minigpt.trainer import TrainConfig, portable, train
 
 ROOT = Path(__file__).resolve().parent
 
@@ -38,7 +38,7 @@ def main() -> None:
             raise SystemExit(f"corpus not found: {corpus}")
         corpus.parent.mkdir(parents=True, exist_ok=True)
         size = write_corpus(corpus, a.stories, a.seed)
-        print(f"generated {a.stories} stories ({size:,} chars) -> {corpus}")
+        print(f"generated {a.stories} stories ({size:,} chars) -> {portable(corpus)}")
 
     tcfg = TrainConfig(corpus=str(corpus), out_dir=a.out_dir, vocab_size=a.vocab_size,
                        val_fraction=a.val_fraction, batch_size=a.batch_size, max_steps=a.max_steps,

@@ -168,5 +168,5 @@ clausegpt/data.py     LEDGAR loading, encoding with answer-only labels, padding 
 clausegpt/loss.py     causal-LM loss computed only at graded positions
 clausegpt/tagger.py   ClauseTagger: save/load, predict, tag, generate
 train.py  evaluate.py  explore.py  tag.py  app.py  web/index.html
-results/              explore.txt, train_log.jsonl
+results/              explore.txt, train_log.jsonl, train_run.json, eval.json
 ```
